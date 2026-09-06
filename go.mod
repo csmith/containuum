@@ -1,4 +1,4 @@
-module github.com/csmith/containuum
+module github.com/csmith/containuum/v2
 
 go 1.25.5
 

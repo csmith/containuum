@@ -14,7 +14,7 @@ type Container struct {
 	State    string            // Container state (e.g., "running", "exited", "paused")
 	Labels   map[string]string // Container labels
 	Networks []Network         // All connected networks
-	Ports    []Port            // Published port mappings
+	Ports    []Port            // Port mappings, including exposed-but-unpublished ports
 }
 
 // hash computes a hash of the Container.
@@ -85,8 +85,8 @@ func (n *Network) hash() uint64 {
 
 // Port represents a port mapping.
 type Port struct {
-	HostIP        string // Host IP (e.g., "0.0.0.0")
-	HostPort      uint16 // Port on host
+	HostIP        string // Host IP the port is bound to (e.g., "0.0.0.0"); empty if the port is not published
+	HostPort      uint16 // Port on host; 0 if the port is exposed but not published
 	ContainerPort uint16 // Port in container
 	Protocol      string // "tcp" or "udp"
 }

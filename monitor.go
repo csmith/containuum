@@ -271,6 +271,15 @@ func convertContainer(inspect container.InspectResponse) Container {
 			}
 			containerPort := uint16(containerPortNum)
 
+			// Exposed but unbound ports have no bindings; emit with zero host port.
+			if len(bindings) == 0 {
+				c.Ports = append(c.Ports, Port{
+					ContainerPort: containerPort,
+					Protocol:      parts[1],
+				})
+				continue
+			}
+
 			for _, binding := range bindings {
 				hostPortNum, err := strconv.ParseUint(binding.HostPort, 10, 16)
 				if err != nil {

@@ -18,7 +18,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/csmith/containuum"
+	"github.com/csmith/containuum/v2"
 )
 
 func main() {
