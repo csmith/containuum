@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 )
 
 // Run monitors Docker containers and calls the callback when the filtered set changes.
@@ -54,7 +54,7 @@ func Run(ctx context.Context, callback Callback, opts ...Option) error {
 // newDefaultClient creates a default Docker client from the environment.
 // Returns the client and a cleanup function that should be called when done.
 func newDefaultClient() (DockerClient, func() error, error) {
-	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	c, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create docker client: %w", err)
 	}

@@ -18,7 +18,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/csmith/containuum/v2"
+	"github.com/csmith/containuum/v3"
 )
 
 func main() {
@@ -41,7 +41,7 @@ The following options can be passed to Containuum:
 
 - `WithDockerClient` provides a specific Docker client to use. If not specified,
   one is created with default values. You can customise the behaviour of the
-  default Docker client using [env vars](https://pkg.go.dev/github.com/docker/docker/client#FromEnv).
+  default Docker client using [env vars](https://pkg.go.dev/github.com/moby/moby/client#FromEnv).
 - `WithFilter` applies a filter to containers that are returned. See the
   filters section below. Only one top-level filter may be applied.
 - `WithDebounce` configures the debounce on incoming container events. This

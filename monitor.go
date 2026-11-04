@@ -3,32 +3,31 @@ package containuum
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 )
 
 // eventFilters are the Docker events we subscribe to.
-var eventFilters = filters.NewArgs(
-	filters.Arg("type", "container"),
-	filters.Arg("type", "network"),
-	filters.Arg("event", "create"),
-	filters.Arg("event", "start"),
-	filters.Arg("event", "stop"),
-	filters.Arg("event", "die"),
-	filters.Arg("event", "kill"),
-	filters.Arg("event", "pause"),
-	filters.Arg("event", "unpause"),
-	filters.Arg("event", "rename"),
-	filters.Arg("event", "update"),
-	filters.Arg("event", "destroy"),
-	filters.Arg("event", "connect"),
-	filters.Arg("event", "disconnect"),
-)
+var eventFilters = client.Filters{}.
+	Add("type", "container").
+	Add("type", "network").
+	Add("event", "create").
+	Add("event", "start").
+	Add("event", "stop").
+	Add("event", "die").
+	Add("event", "kill").
+	Add("event", "pause").
+	Add("event", "unpause").
+	Add("event", "rename").
+	Add("event", "update").
+	Add("event", "destroy").
+	Add("event", "connect").
+	Add("event", "disconnect")
 
 // reconnectConfig holds parameters for automatic reconnection.
 type reconnectConfig struct {
@@ -107,7 +106,7 @@ func (m *monitor) runWithRetry() error {
 
 // runOnce is the main event loop.
 func (m *monitor) runOnce() error {
-	eventCh, errCh := m.client.Events(m.ctx, events.ListOptions{
+	events := m.client.Events(m.ctx, client.EventsListOptions{
 		Filters: eventFilters,
 	})
 
@@ -136,13 +135,13 @@ func (m *monitor) runOnce() error {
 		case <-m.ctx.Done():
 			return m.ctx.Err()
 
-		case err := <-errCh:
+		case err := <-events.Err:
 			if err != nil {
 				return fmt.Errorf("failed to stream events: %w", err)
 			}
 			return nil
 
-		case event := <-eventCh:
+		case event := <-events.Messages:
 			Log("Received event from docker", "type", event.Type, "actor", event.Actor.ID, "action", event.Action)
 			idleTicker.Reset(m.maxIdleTime)
 
@@ -211,7 +210,7 @@ func (m *monitor) gatherContainers() ([]Container, error) {
 	ctx, cancel := context.WithTimeout(m.ctx, 30*time.Second)
 	defer cancel()
 
-	summaries, err := m.client.ContainerList(ctx, container.ListOptions{
+	list, err := m.client.ContainerList(ctx, client.ContainerListOptions{
 		All: true,
 	})
 	if err != nil {
@@ -219,14 +218,14 @@ func (m *monitor) gatherContainers() ([]Container, error) {
 	}
 
 	var containers []Container
-	for _, summary := range summaries {
-		inspect, err := m.client.ContainerInspect(ctx, summary.ID)
+	for _, summary := range list.Items {
+		inspect, err := m.client.ContainerInspect(ctx, summary.ID, client.ContainerInspectOptions{})
 		if err != nil {
 			Log("Failed to inspect container", "id", summary.ID, "error", err)
 			continue
 		}
 
-		c := convertContainer(inspect)
+		c := convertContainer(inspect.Container)
 		if m.filter == nil || m.filter(c) {
 			containers = append(containers, c)
 		}
@@ -241,7 +240,7 @@ func convertContainer(inspect container.InspectResponse) Container {
 		ID:     inspect.ID,
 		Name:   strings.TrimPrefix(inspect.Name, "/"),
 		Image:  inspect.Config.Image,
-		State:  inspect.State.Status,
+		State:  string(inspect.State.Status),
 		Labels: inspect.Config.Labels,
 	}
 
@@ -250,32 +249,28 @@ func convertContainer(inspect container.InspectResponse) Container {
 			c.Networks = append(c.Networks, Network{
 				Name:       name,
 				ID:         network.NetworkID,
-				IPAddress:  network.IPAddress,
-				IP6Address: network.GlobalIPv6Address,
-				Gateway:    network.Gateway,
+				IPAddress:  addrString(network.IPAddress),
+				IP6Address: addrString(network.GlobalIPv6Address),
+				Gateway:    addrString(network.Gateway),
 				Aliases:    network.Aliases,
 			})
 		}
 	}
 
 	if inspect.NetworkSettings != nil {
-		for portProto, bindings := range inspect.NetworkSettings.Ports {
-			parts := strings.Split(string(portProto), "/")
-			if len(parts) != 2 {
+		for port, bindings := range inspect.NetworkSettings.Ports {
+			if !port.IsValid() {
 				continue
 			}
 
-			containerPortNum, err := strconv.ParseUint(parts[0], 10, 16)
-			if err != nil {
-				continue
-			}
-			containerPort := uint16(containerPortNum)
+			containerPort := port.Num()
+			protocol := string(port.Proto())
 
 			// Exposed but unbound ports have no bindings; emit with zero host port.
 			if len(bindings) == 0 {
 				c.Ports = append(c.Ports, Port{
 					ContainerPort: containerPort,
-					Protocol:      parts[1],
+					Protocol:      protocol,
 				})
 				continue
 			}
@@ -287,16 +282,25 @@ func convertContainer(inspect container.InspectResponse) Container {
 				}
 
 				c.Ports = append(c.Ports, Port{
-					HostIP:        binding.HostIP,
+					HostIP:        addrString(binding.HostIP),
 					HostPort:      uint16(hostPortNum),
 					ContainerPort: containerPort,
-					Protocol:      parts[1],
+					Protocol:      protocol,
 				})
 			}
 		}
 	}
 
 	return c
+}
+
+// addrString formats an address, returning an empty string for an unset one
+// (which [netip.Addr.String] would format as "invalid IP").
+func addrString(addr netip.Addr) string {
+	if !addr.IsValid() {
+		return ""
+	}
+	return addr.String()
 }
 
 // computeHash generates a hash of the container list.

@@ -5,8 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
+	"github.com/moby/moby/client"
 )
 
 // Log is the logging function used by the library.
@@ -18,13 +17,13 @@ var Log func(msg string, keysAndValues ...any) = slog.Debug
 // This is a subset of client.APIClient for easier testing and custom client injection.
 type DockerClient interface {
 	// Events returns a channel of Docker events and a channel of errors.
-	Events(ctx context.Context, options events.ListOptions) (<-chan events.Message, <-chan error)
+	Events(ctx context.Context, options client.EventsListOptions) client.EventsResult
 
 	// ContainerList returns a list of containers.
-	ContainerList(ctx context.Context, options container.ListOptions) ([]container.Summary, error)
+	ContainerList(ctx context.Context, options client.ContainerListOptions) (client.ContainerListResult, error)
 
 	// ContainerInspect returns detailed information about a container.
-	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
+	ContainerInspect(ctx context.Context, containerID string, options client.ContainerInspectOptions) (client.ContainerInspectResult, error)
 }
 
 // Option configures the monitor.

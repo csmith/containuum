@@ -10,8 +10,9 @@ import (
 
 	"testing/synctest"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/events"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/events"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,29 +36,29 @@ func newMockDockerClient() *mockDockerClient {
 	}
 }
 
-func (m *mockDockerClient) Events(_ context.Context, _ events.ListOptions) (<-chan events.Message, <-chan error) {
-	return m.eventCh, m.errCh
+func (m *mockDockerClient) Events(_ context.Context, _ client.EventsListOptions) client.EventsResult {
+	return client.EventsResult{Messages: m.eventCh, Err: m.errCh}
 }
 
-func (m *mockDockerClient) ContainerList(_ context.Context, _ container.ListOptions) ([]container.Summary, error) {
+func (m *mockDockerClient) ContainerList(_ context.Context, _ client.ContainerListOptions) (client.ContainerListResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.listErr != nil {
-		return nil, m.listErr
+		return client.ContainerListResult{}, m.listErr
 	}
-	return m.summaries, nil
+	return client.ContainerListResult{Items: m.summaries}, nil
 }
 
-func (m *mockDockerClient) ContainerInspect(_ context.Context, containerID string) (container.InspectResponse, error) {
+func (m *mockDockerClient) ContainerInspect(_ context.Context, containerID string, _ client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err, ok := m.inspectErr[containerID]; ok {
-		return container.InspectResponse{}, err
+		return client.ContainerInspectResult{}, err
 	}
 	if inspect, ok := m.inspects[containerID]; ok {
-		return inspect, nil
+		return client.ContainerInspectResult{Container: inspect}, nil
 	}
-	return container.InspectResponse{}, fmt.Errorf("container not found: %s", containerID)
+	return client.ContainerInspectResult{}, fmt.Errorf("container not found: %s", containerID)
 }
 
 func (m *mockDockerClient) setContainers(containers ...container.InspectResponse) {
@@ -78,11 +79,9 @@ func TestRun_ReceivesInitialContainers(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -123,11 +122,9 @@ func TestRun_MultipleEvents(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -158,11 +155,9 @@ func TestRun_MultipleEvents(t *testing.T) {
 		// Change container state so it's not deduplicated
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1-renamed",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1-renamed",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -190,19 +185,15 @@ func TestRun_AppliesFilter(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/running",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/running",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container2",
-					Name:  "/exited",
-					State: &container.State{Status: "exited"},
-				},
+				ID:     "container2",
+				Name:   "/exited",
+				State:  &container.State{Status: "exited"},
 				Config: &container.Config{Image: "redis:latest"},
 			},
 		)
@@ -240,11 +231,9 @@ func TestRun_Deduplicates(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -295,11 +284,9 @@ func TestRun_StateChange(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -326,11 +313,9 @@ func TestRun_StateChange(t *testing.T) {
 		// Change container state
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "exited"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "exited"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -444,11 +429,9 @@ func TestRun_WithDebounceOption(t *testing.T) {
 
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -478,11 +461,9 @@ func TestRun_WithMaxDebounceTime(t *testing.T) {
 		mock := newMockDockerClient()
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)
@@ -556,11 +537,9 @@ func TestRun_WithMaxIdleTime(t *testing.T) {
 		// Set containers so next idle poll isn't deduplicated
 		mock.setContainers(
 			container.InspectResponse{
-				ContainerJSONBase: &container.ContainerJSONBase{
-					ID:    "container1",
-					Name:  "/test1",
-					State: &container.State{Status: "running"},
-				},
+				ID:     "container1",
+				Name:   "/test1",
+				State:  &container.State{Status: "running"},
 				Config: &container.Config{Image: "nginx:latest"},
 			},
 		)

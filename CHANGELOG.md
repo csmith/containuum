@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.0 - 2026-11-04
+
+- **Breaking:** `DockerClient` now uses the types from
+  `github.com/moby/moby/client`, replacing `github.com/docker/docker`.
+
 ## 2.0.0 - 2026-09-06
 
 - **Breaking:** `Container.Ports` now includes exposed-but-unpublished ports
