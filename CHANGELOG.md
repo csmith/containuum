@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.1.0 - 2026-11-16
 
 - Add `WithErrorHandler` to receive inspect and reconnect errors that don't
   stop monitoring
