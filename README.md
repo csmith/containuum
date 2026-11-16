@@ -58,6 +58,12 @@ The following options can be passed to Containuum:
   If not specified, Containuum will error if the stream is disconnected, and
   clients must call `Run()` again to resume. Reconnection is performed with an
   exponential back-off, up to a maximum time limit.
+- `WithErrorHandler` sets a function to receive errors that don't stop
+  monitoring. If a container can't be inspected, or its inspect hangs for more
+  than a few seconds, Containuum keeps reporting its last known state (or
+  leaves it out if it has never been inspected) and passes the error to this
+  handler once, until the container recovers. Errors that `WithAutoReconnect`
+  recovers from are passed to it too.
 
 ## Filters
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add `WithErrorHandler` to receive inspect and reconnect errors that don't
+  stop monitoring
+- Fix containers being dropped from the list when they fail to be inspected;
+  they now keep their last known state
+- Fix one hung container delaying every refresh
+
 ## 3.0.0 - 2026-11-04
 
 - **Breaking:** `DockerClient` now uses the types from

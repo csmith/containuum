@@ -36,19 +36,22 @@ func Run(ctx context.Context, callback Callback, opts ...Option) error {
 		}
 	}
 
-	m := &monitor{
-		ctx:             ctx,
-		client:          dockerClient,
-		callback:        callback,
-		filter:          cfg.filter,
-		debounce:        cfg.debounce,
-		maxDebounceTime: cfg.maxDebounceTime,
-		maxIdleTime:     cfg.maxIdleTime,
-		reconnect:       reconnect,
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	m := newMonitor(ctx)
+	m.client = dockerClient
+	m.callback = callback
+	m.errorHandler = cfg.errorHandler
+	m.filter = cfg.filter
+	m.debounce = cfg.debounce
+	m.maxDebounceTime = cfg.maxDebounceTime
+	m.maxIdleTime = cfg.maxIdleTime
+	m.reconnect = reconnect
 
 	Log("entering main event loop")
-	return m.run()
+	err := m.run()
+	cancel()
+	m.wg.Wait()
+	return err
 }
 
 // newDefaultClient creates a default Docker client from the environment.

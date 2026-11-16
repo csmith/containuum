@@ -36,6 +36,7 @@ type Callback func(containers []Container)
 type config struct {
 	client              DockerClient
 	filter              Filter
+	errorHandler        func(error)
 	debounce            time.Duration
 	maxDebounceTime     time.Duration
 	maxIdleTime         time.Duration
@@ -67,6 +68,18 @@ func WithDockerClient(client DockerClient) Option {
 func WithFilter(filter Filter) Option {
 	return func(c *config) {
 		c.filter = filter
+	}
+}
+
+// WithErrorHandler sets a function to call with errors that don't stop
+// monitoring: a container that can't be inspected, or an error that
+// [WithAutoReconnect] recovers from. While a container can't be inspected,
+// its last known state is reported, or it is left out if there is none, and
+// the handler is called once each time it starts failing. It is called from
+// the same goroutine as the callback.
+func WithErrorHandler(handler func(error)) Option {
+	return func(c *config) {
+		c.errorHandler = handler
 	}
 }
 

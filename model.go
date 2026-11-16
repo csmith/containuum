@@ -3,6 +3,8 @@ package containuum
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"sort"
 )
 
@@ -15,6 +17,18 @@ type Container struct {
 	Labels   map[string]string // Container labels
 	Networks []Network         // All connected networks
 	Ports    []Port            // Port mappings, including exposed-but-unpublished ports
+}
+
+// clone returns a deep copy of the Container.
+func (c *Container) clone() Container {
+	res := *c
+	res.Labels = maps.Clone(c.Labels)
+	res.Ports = slices.Clone(c.Ports)
+	res.Networks = slices.Clone(c.Networks)
+	for i := range res.Networks {
+		res.Networks[i].Aliases = slices.Clone(res.Networks[i].Aliases)
+	}
+	return res
 }
 
 // hash computes a hash of the Container.
