@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Update OpenTelemetry to fix GO-2026-6974; Go 1.26 is now required
+
 ## 3.1.0 - 2026-11-16
 
 - Add `WithErrorHandler` to receive inspect and reconnect errors that don't
